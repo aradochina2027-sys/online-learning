@@ -5,11 +5,13 @@ from django.db import models
 class Course(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+
     teacher = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="courses",
     )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -22,9 +24,12 @@ class Lesson(models.Model):
         on_delete=models.CASCADE,
         related_name="lessons",
     )
+
     title = models.CharField(max_length=200)
     content = models.TextField(blank=True)
+
     video_url = models.URLField(blank=True)
+
     pdf_file = models.FileField(
         upload_to="lessons/",
         blank=True,
@@ -41,11 +46,13 @@ class Enrollment(models.Model):
         on_delete=models.CASCADE,
         related_name="enrollments",
     )
+
     course = models.ForeignKey(
         Course,
         on_delete=models.CASCADE,
         related_name="enrollments",
     )
+
     enrolled_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
