@@ -1,14 +1,12 @@
-from django.contrib.auth import get_user_model
+from pathlib import Path
+
+from django.conf import settings
 from rest_framework import serializers
 
 from .models import Course, Lesson
 
 
-User = get_user_model()
-
-
 class LessonSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Lesson
 
@@ -35,9 +33,34 @@ class LessonSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate_pdf_file(self, value):
+        if not value:
+            return value
+
+        # Перевірка розміру файлу
+        if value.size > settings.MAX_UPLOAD_SIZE:
+            raise serializers.ValidationError(
+                "Розмір PDF-файлу не повинен перевищувати 5 МБ."
+            )
+
+        # Перевірка розширення файлу
+        extension = Path(value.name).suffix.lower()
+
+        if extension != ".pdf":
+            raise serializers.ValidationError(
+                "Дозволено завантажувати тільки PDF-файли."
+            )
+
+        # Перевірка MIME-типу
+        content_type = getattr(value, "content_type", None)
+
+        if content_type and content_type != "application/pdf":
+            raise serializers.ValidationError("Файл повинен мати тип application/pdf.")
+
+        return value
+
 
 class CourseSerializer(serializers.ModelSerializer):
-
     lessons = LessonSerializer(
         many=True,
         read_only=True,
