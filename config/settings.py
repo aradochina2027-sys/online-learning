@@ -1,21 +1,49 @@
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env")
 
+# Середовище запуску
+DJANGO_ENV = os.getenv("DJANGO_ENV", "development").lower()
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-development-key",
-)
+if DJANGO_ENV not in ("development", "production"):
+    raise ImproperlyConfigured("DJANGO_ENV має бути development або production.")
 
-DEBUG = True
+# Секретний ключ зберігається поза кодом
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
-ALLOWED_HOSTS = []
+if not SECRET_KEY or SECRET_KEY == "your-secret-key-here":
+    raise ImproperlyConfigured(
+        "Вкажіть DJANGO_SECRET_KEY у файлі .env або змінних оточення."
+    )
+
+# Налаштування dev / prod
+DEBUG = os.getenv(
+    "DJANGO_DEBUG",
+    "true" if DJANGO_ENV == "development" else "false",
+).lower() in ("true", "1", "yes")
+
+if DJANGO_ENV == "production" and DEBUG:
+    raise ImproperlyConfigured("У production DJANGO_DEBUG повинен бути False.")
+
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "DJANGO_ALLOWED_HOSTS",
+        "127.0.0.1,localhost" if DJANGO_ENV == "development" else "",
+    ).split(",")
+    if host.strip()
+]
+
+if DJANGO_ENV == "production" and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "У production необхідно налаштувати DJANGO_ALLOWED_HOSTS."
+    )
 
 
 INSTALLED_APPS = [
@@ -103,11 +131,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 REST_FRAMEWORK = {
-    "DEFAULT_SCHEMA_CLASS": ("drf_spectacular.openapi.AutoSchema"),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": ("rest_framework.pagination.PageNumberPagination"),
     "PAGE_SIZE": 5,
     "DEFAULT_FILTER_BACKENDS": [
@@ -133,5 +163,37 @@ MEDIA_URL = "/media/"
 
 MEDIA_ROOT = BASE_DIR / "media"
 
-
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024
+
+
+# Кешування для зовнішніх REST-запитів
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "online-learning-cache",
+        "TIMEOUT": 300,
+    }
+}
+
+
+# Налаштування зовнішнього REST-сервісу
+EXTERNAL_API_URL = os.getenv(
+    "EXTERNAL_API_URL",
+    "https://jsonplaceholder.typicode.com",
+)
+
+EXTERNAL_API_TIMEOUT = float(os.getenv("EXTERNAL_API_TIMEOUT", "5"))
+
+EXTERNAL_API_CACHE_TIMEOUT = int(os.getenv("EXTERNAL_API_CACHE_TIMEOUT", "300"))
+
+
+# Додаткові налаштування production
+if DJANGO_ENV == "production":
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_SSL_REDIRECT = os.getenv("DJANGO_SECURE_SSL_REDIRECT", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
