@@ -14,3 +14,12 @@ media/
 staticfiles/
 
 *.log
+
+# Windows
+desktop.ini
+Thumbs.db
+
+# Temporary benchmark files
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm

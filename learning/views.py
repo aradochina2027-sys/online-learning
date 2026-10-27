@@ -1,9 +1,17 @@
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework import filters, parsers, viewsets
+from drf_spectacular.utils import (
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
+from rest_framework import filters, parsers, serializers, status, viewsets
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
-from .models import Course, Lesson
+from .models import BackgroundTask, Course, Lesson
 from .serializers import CourseSerializer, LessonSerializer
+from .tasks import start_courses_report
 
 
 @extend_schema_view(
@@ -141,3 +149,75 @@ class LessonViewSet(viewsets.ModelViewSet):
     ordering = [
         "id",
     ]
+
+
+class BackgroundTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BackgroundTask
+        fields = [
+            "id",
+            "status",
+            "result",
+            "error",
+            "created_at",
+            "started_at",
+            "finished_at",
+        ]
+        read_only_fields = fields
+
+
+class TaskAcceptedSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    status = serializers.CharField(read_only=True)
+
+
+@extend_schema(
+    summary="Запустити фонову генерацію звіту",
+    description=(
+        "Створює задачу для генерації звіту про курси. "
+        "Повертає HTTP 202, не очікуючи завершення генерації."
+    ),
+    request=None,
+    responses={
+        202: TaskAcceptedSerializer,
+        503: OpenApiResponse(description="Фоновий виконавець недоступний"),
+    },
+    tags=["Фонові задачі"],
+)
+@api_view(["POST"])
+def create_courses_report(request):
+    task = start_courses_report()
+
+    if task.status == BackgroundTask.Status.FAILED:
+        return Response(
+            {
+                "id": str(task.id),
+                "status": task.status,
+                "error": task.error,
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    return Response(
+        {
+            "id": str(task.id),
+            "status": task.status,
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
+@extend_schema(
+    summary="Перевірити статус фонової задачі",
+    description=(
+        "Повертає статус, результат або повідомлення " "про помилку фонової задачі."
+    ),
+    responses={200: BackgroundTaskSerializer},
+    tags=["Фонові задачі"],
+)
+@api_view(["GET"])
+def get_background_task(request, task_id):
+    task = get_object_or_404(BackgroundTask, id=task_id)
+
+    serializer = BackgroundTaskSerializer(task)
+    return Response(serializer.data)
