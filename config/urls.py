@@ -1,15 +1,24 @@
 from django.contrib import admin
 from django.urls import include, path
-
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+)
 
 urlpatterns = [
+    path("admin/", admin.site.urls),
+    # API
+    path("api/", include("learning.urls")),
+    # OpenAPI schema
     path(
-        "admin/",
-        admin.site.urls,
+        "api/schema/",
+        SpectacularAPIView.as_view(),
+        name="schema",
     ),
-
+    # Swagger UI
     path(
-        "api/",
-        include("learning.urls"),
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
     ),
 ]
