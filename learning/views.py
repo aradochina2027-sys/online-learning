@@ -5,8 +5,18 @@ from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
 )
-from rest_framework import filters, parsers, serializers, status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework import (
+    filters,
+    parsers,
+    serializers,
+    status,
+    viewsets,
+)
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import (
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
 
 from .models import BackgroundTask, Course, Lesson
@@ -46,6 +56,7 @@ from .tasks import start_courses_report
 )
 class CourseViewSet(viewsets.ModelViewSet):
     serializer_class = CourseSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     queryset = (
         Course.objects.select_related("teacher").prefetch_related("lessons").all()
@@ -57,9 +68,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
 
-    filterset_fields = [
-        "teacher",
-    ]
+    filterset_fields = ["teacher"]
 
     search_fields = [
         "title",
@@ -73,9 +82,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         "created_at",
     ]
 
-    ordering = [
-        "id",
-    ]
+    ordering = ["id"]
 
 
 @extend_schema_view(
@@ -117,6 +124,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 )
 class LessonViewSet(viewsets.ModelViewSet):
     serializer_class = LessonSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     parser_classes = [
         parsers.MultiPartParser,
@@ -124,7 +132,10 @@ class LessonViewSet(viewsets.ModelViewSet):
         parsers.JSONParser,
     ]
 
-    queryset = Lesson.objects.select_related("course", "course__teacher").all()
+    queryset = Lesson.objects.select_related(
+        "course",
+        "course__teacher",
+    ).all()
 
     filter_backends = [
         DjangoFilterBackend,
@@ -132,9 +143,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter,
     ]
 
-    filterset_fields = [
-        "course",
-    ]
+    filterset_fields = ["course"]
 
     search_fields = [
         "title",
@@ -146,9 +155,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         "title",
     ]
 
-    ordering = [
-        "id",
-    ]
+    ordering = ["id"]
 
 
 class BackgroundTaskSerializer(serializers.ModelSerializer):
@@ -185,6 +192,7 @@ class TaskAcceptedSerializer(serializers.Serializer):
     tags=["Фонові задачі"],
 )
 @api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def create_courses_report(request):
     task = start_courses_report()
 
@@ -216,6 +224,7 @@ def create_courses_report(request):
     tags=["Фонові задачі"],
 )
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_background_task(request, task_id):
     task = get_object_or_404(BackgroundTask, id=task_id)
 

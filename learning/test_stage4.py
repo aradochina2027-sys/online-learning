@@ -1,16 +1,30 @@
 from unittest.mock import Mock, patch
 
 import requests
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .external_api import ExternalAPIError, get_external_posts
 from .models import BackgroundTask
 
+User = get_user_model()
 
-class BackgroundTaskAPITests(APITestCase):
+
+class AuthenticatedTaskTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="task_test_user",
+            password="TaskTestPassword2026!",
+        )
+        access = RefreshToken.for_user(self.user).access_token
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+
+
+class BackgroundTaskAPITests(AuthenticatedTaskTestCase):
     @patch("learning.views.start_courses_report")
     def test_create_background_task_returns_202(self, mock_start):
         task = Mock()
@@ -126,7 +140,7 @@ class ExternalAPITests(TestCase):
         )
 
 
-class BackgroundTaskNonBlockingTests(APITestCase):
+class BackgroundTaskNonBlockingTests(AuthenticatedTaskTestCase):
     @patch("learning.tasks.executor.submit")
     def test_background_task_does_not_wait_for_completion(self, mock_submit):
         response = self.client.post("/api/tasks/reports/")
@@ -135,11 +149,7 @@ class BackgroundTaskNonBlockingTests(APITestCase):
             response.status_code,
             status.HTTP_202_ACCEPTED,
         )
-
-        self.assertEqual(
-            BackgroundTask.objects.count(),
-            1,
-        )
+        self.assertEqual(BackgroundTask.objects.count(), 1)
 
         task = BackgroundTask.objects.first()
 
@@ -147,5 +157,4 @@ class BackgroundTaskNonBlockingTests(APITestCase):
             task.status,
             BackgroundTask.Status.PENDING,
         )
-
         mock_submit.assert_called_once()
