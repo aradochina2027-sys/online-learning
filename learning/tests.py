@@ -5,6 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Course, Lesson
 
@@ -18,6 +19,8 @@ class CourseAPITests(APITestCase):
             username="test_teacher",
             password="test_password",
         )
+        access = RefreshToken.for_user(self.teacher).access_token
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
     def test_create_course(self):
         data = {
@@ -36,11 +39,9 @@ class CourseAPITests(APITestCase):
             response.status_code,
             status.HTTP_201_CREATED,
         )
-
         self.assertEqual(Course.objects.count(), 1)
 
         course = Course.objects.first()
-
         self.assertEqual(course.title, "Python Course")
         self.assertEqual(course.teacher, self.teacher)
 
@@ -57,7 +58,6 @@ class CourseAPITests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
         )
-
         self.assertEqual(Course.objects.count(), 1)
 
 
@@ -68,6 +68,9 @@ class LessonFileAPITests(APITestCase):
             username="lesson_teacher",
             password="test_password",
         )
+
+        access = RefreshToken.for_user(self.teacher).access_token
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
 
         self.course = Course.objects.create(
             title="Test Course",
@@ -99,11 +102,9 @@ class LessonFileAPITests(APITestCase):
             response.status_code,
             status.HTTP_201_CREATED,
         )
-
         self.assertEqual(Lesson.objects.count(), 1)
 
         lesson = Lesson.objects.first()
-
         self.assertEqual(lesson.title, "Test Lesson")
         self.assertTrue(lesson.pdf_file.name.endswith(".pdf"))
 
@@ -131,7 +132,6 @@ class LessonFileAPITests(APITestCase):
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
-
         self.assertEqual(Lesson.objects.count(), 0)
 
     def test_get_lesson(self):
@@ -147,7 +147,6 @@ class LessonFileAPITests(APITestCase):
             response.status_code,
             status.HTTP_200_OK,
         )
-
         self.assertEqual(
             response.data["title"],
             "Existing Lesson",
@@ -177,5 +176,4 @@ class LessonFileAPITests(APITestCase):
             response.status_code,
             status.HTTP_400_BAD_REQUEST,
         )
-
         self.assertEqual(Lesson.objects.count(), 0)
